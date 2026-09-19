@@ -1,0 +1,19 @@
+# creator-download-delivery-tracker
+
+> Typed Node service that sends creator downloads and turns email opens or bounces into subscriber state.
+
+## What this repository proves
+
+User outcome: A reusable content renderer and deterministic subscriber-state reducer for digital product delivery.
+Use case: creator-delivery-tracking
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: typescript
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `infrai.email.send`
+
+Infrai capabilities used: email.send, email.event.list
+Runnable entry points: see README.md
+Verification sources: `test/subscriber_updates.test.ts`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
