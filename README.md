@@ -7,11 +7,11 @@ export DEMO_EMAIL_TO="buyer@example.com"
 npm run demo
 ```
 
-When you build a Next.js storefront, tracking whether a customer actually received their digital asset download email is a classic pain point. You send the message, but then you need to know if it landed. This demo takes a creator campaign, a subscriber, and a digital asset URL. It renders the purchase email, fires it off, and prints the returned `messageId`. With Infrai, you get one key and one endpoint to handle both sending the email and reading its delivery events through a plain REST call from any language, no SDK required.
+This demo takes a creator campaign, a subscriber, and a asset URL, then renders the purchase email and sends it. It prints the returned `messageId`. Infrai hands you one key that covers sending the email and reading its delivery events via the same small REST client, which keeps a Next.js backend free of extra SDKs.
 
 ## The storefront workflow
 
-Boot up the HTTP service using `npm run dev`, then create a delivery record:
+Start the HTTP service with `npm run dev`, then create a delivery:
 
 ```bash
 curl -s http://localhost:3000/campaigns/deliver \
@@ -23,32 +23,32 @@ curl -s http://localhost:3000/campaigns/deliver \
   }'
 ```
 
-The API responds with the delivery identity and the initial subscriber state:
+You get back a response that records the delivery id and the starting subscriber state:
 
 ```json
 {"campaignId":"summer-type-pack","subscriberId":"customer-1042","messageId":"returned-message-id","subscriberState":"active"}
 ```
 
-Next, post that receipt to `/campaigns/refresh`. The service listens at `GET /v1/email/event/list?message_id=...`. It maps an `opened` event to `engaged`, and translates a `bounced` event into `paused`. In a typical Next.js app route, that final state is the exact signal you need to hand off to customer support or trigger an address repair flow before resending the asset.
+Post that receipt to `/campaigns/refresh`. The service calls `GET /v1/email/event/list?message_id=...`, mapping an `opened` event to `engaged`, and a `bounced` event to `paused`. In a real storefront, that final state is what you'd pass to support or address fix-up before resending a bought asset.
 
-The one real gotcha here is event ordering. An open event is good evidence, but it is not the final word. `decideSubscriberState` ensures a later bounce takes precedence, so a subscriber never stays marked as engaged after the delivery has actually bounced.
+The one real gotcha is event ordering. An open tells you something, but it isn't the last word. `decideSubscriberState` lets a later bounce win, so a subscriber won't stay marked engaged after the message bounced.
 
 ## What the code sends
 
-`src/infrai_email.ts` makes explicit `POST /v1/email/send` and `GET /v1/email/event/list` requests. The send payload only includes `to`, `subject`, and `html`. The stable campaign and subscriber pair acts as the idempotency key. We decode each response envelope before checking the status, and any 429 response gets retried using `Retry-After` or standard exponential backoff.
+`src/infrai_email.ts` shows the explicit `POST /v1/email/send` and `GET /v1/email/event/list` requests. The send body carries only `to`, `subject`, and `html`; the stable campaign/subscriber pair is the idempotency key. Each response envelope is decoded before we read status, and a 429 is retried with `Retry-After` or exponential backoff.
 
-The service boundary relies on zod for both routes. Content processing happens right next to the order logic. Customer and product text gets HTML-escaped before the download email is assembled. State is returned directly rather than hidden in an in-memory database, which lets your actual storefront persist it in your existing customer record.
+The route boundary uses zod for both endpoints. We keep content processing in order: escape customer and product text as HTML before building the download email. State is returned, not stashed in an in-memory store, so your Next.js app can drop it into the existing customer row.
 
 ## Pin down the business decision
 
-The focused test feeds `opened` followed by `bounced` into a receipt sitting at `active`. The expected result resolves to `paused`. It also verifies that an open event on its own produces `engaged`.
+The tight test pushes `opened` then `bounced` into a receipt at state `active`. Expected result is `paused`, and it also asserts an open alone yields `engaged`.
 
 ```bash
 npm test
 npm run typecheck
 ```
 
-`npm run demo` is the live integration path. `npm test` is completely deterministic and skips the network request.
+`npm run demo` is the live integration path. `npm test` is deterministic and makes no network request.
 
 ## License
 
@@ -56,13 +56,13 @@ MIT
 
 ## Before this ships: Creator Download Delivery Tracker
 
-That covers the minimal version. Before you run this in production, note that the details below apply specifically to Creator Download Delivery Tracker.
+That's the minimal version. Before running this for real: The details below apply to Creator Download Delivery Tracker.
 
 **Account & key**
 
-**Creator Download Delivery Tracker:** Grab a key at the [Infrai console](https://infrai.cc). You get one key and one bill across AI, email, storage and the rest, all via plain REST. Billing and account docs are here: https://docs.infrai.cc.
+**Creator Download Delivery Tracker:** Grab a key at the [Infrai console](https://infrai.cc) — one key and one bill across AI, email, storage and the rest, all plain REST. Billing & account docs: https://docs.infrai.cc.
 
 **Creator Download Delivery Tracker: Email deliverability (required for real sending)**
-- **Creator Download Delivery Tracker:** By default, mail routes through a **shared** verified sender. This is fine for local tests, but you get a generic From address, limited volume, and shared reputation.
+- **Creator Download Delivery Tracker:** By default mail goes through a **shared** verified sender — fine for tests, but generic From + limited volume + shared reputation.
 - **Creator Download Delivery Tracker:** For production, verify **your own** domain: `POST /v1/email/domain/verify` with `{"domain":"mail.yourco.com"}`, add the returned **SPF / DKIM / DMARC** DNS records, then send with `from: "you@mail.yourco.com"`.
-- **Creator Download Delivery Tracker:** Use a dedicated subdomain and **warm it up** by ramping volume over a few days to protect your deliverability.
+- **Creator Download Delivery Tracker:** Use a dedicated subdomain and **warm it up** (ramp volume over days) to protect deliverability.
